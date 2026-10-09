@@ -23,6 +23,11 @@ class ESP32Par:
         self._group_pin_quantity = [4,6]
     
     def _set_states(self, group: int, states: list[bool]) -> str:
+        if len(states) != self._group_pin_quantity[group]:
+            raise RuntimeError(
+                f'ESP32: для group {group} ожидается {self._group_pin_quantity[group]} '
+                f'состояний пинов, получено {len(states)}'
+            )
         pin_state_list_str = ''.join(['1' if state else '0' for state in states])
         command = self._cmd.par.format(group=group, pins_state=pin_state_list_str)
         answer = self._comm.send_command(command)
@@ -48,12 +53,22 @@ class ESP32Par:
         answer = self._comm.send_command(self._cmd.cs.format(cs_state=int(cs_state)))
         return answer
 
-    def get_pin_state(self, group: int) -> list[bool]:
+    def get_pin_state(self, group: int, retries: int = 5) -> list[bool]:
         """Get pin state"""
-        answer = self._comm.send_command(self._cmd.get_pin_state.format(group=group))
-        pin_state_str = answer.strip()
-        pin_state = [(s != '0') for s in pin_state_str.split(',')]
-        return pin_state
+        command = self._cmd.get_pin_state.format(group=group)
+        answer = ''
+        for _ in range(retries):
+            answer = self._comm.send_command(command)
+            # ESP32 может писать в порт отладочный спам — ищем среди строк
+            # единственную валидную: ровно N значений 0/1 через запятую
+            for line in answer.splitlines():
+                tokens = [token.strip() for token in line.split(',')]
+                if len(tokens) == self._group_pin_quantity[group] and all(t in ('0', '1') for t in tokens):
+                    return [t == '1' for t in tokens]
+        raise RuntimeError(
+            f'ESP32: не удалось прочитать состояние пинов group {group}. '
+            f'Последний ответ: {answer!r}'
+        )
     
     def set_pins_r(self, group: int, pin_list: list[int], state: bool) -> str:
         """Reset another"""
@@ -139,9 +154,6 @@ class ESP32Comm:
         if not self._serial or not self._serial.is_open:
             return "Error: not connected"
         
-        self._serial.write(f"{command}\n".encode())
-        self._serial.flush()
-        
         answer = self._simple_send_command(command)
 
         attempts = 0
@@ -156,6 +168,9 @@ class ESP32Comm:
         return answer
         
     def _simple_send_command(self, command:str) -> str:
+        self._serial.write(f"{command}\n".encode())
+        self._serial.flush()
+
         response_lines = []
         start_time = time.time()
         while time.time() - start_time < self.timeout:

@@ -7,6 +7,8 @@ from .power_supply import DP832A, NGE100, AKIP1143, PowerSupply, TH6400
 
 from .vna.znb20 import ZNB20
 
+from .spectrum_analyzer import MS2038C
+
 from .mc_usb.esp32 import ESP32Comm
 
 from .load import PEL500, DL3021A
