@@ -102,7 +102,9 @@ class ESP32Spi:
 
 class ESP32Comm:
     """Основной класс для работы с ESP32 через Serial"""
-    
+
+    MAX_SEND_ATTEMPTS = 3
+
     def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1):
         self.port = port
         self.baudrate = baudrate
@@ -141,9 +143,15 @@ class ESP32Comm:
         self._serial.flush()
         
         answer = self._simple_send_command(command)
-        
+
+        attempts = 0
         while "ERR" in answer or "Err" in answer:
-            answer = self._simple_send_command('NNNN')
+            attempts += 1
+            if attempts >= self.MAX_SEND_ATTEMPTS:
+                # Отдаём последний ответ (с ошибкой) вызывающему коду,
+                # управление возвращается всегда — без бесконечного цикла.
+                return answer
+            time.sleep(0.1)
             answer = self._simple_send_command(command)
         return answer
         

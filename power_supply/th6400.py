@@ -1,5 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, PowerSupply, Channel
-from time import sleep
+from .base_power_supply import CommList, DeviceSpecs, PowerSupply
 
 '''Акип 1181/3'''
 
@@ -16,9 +15,9 @@ th6400_commands = CommList(
     set_on="INST:NSEL {channel};OUTP ON",
     set_off="INST:NSEL {channel};OUTP OFF",
     ask_mode='',  # не используется в TH6400
-    answer_CC='CC',
-    answer_CV='CV',
-    answer_UR= 'UR'
+    answer_CC='',
+    answer_CV='',
+    answer_UR= ''
 )
 
 th6400_specs = DeviceSpecs(
@@ -29,35 +28,10 @@ th6400_specs = DeviceSpecs(
 )
 
 
-class TH6400Channel(Channel):
-    def wait_for_target_voltage(self, target_voltage: float):
-        """Ожидает установления целевого напряжения с проверкой на КЗ (CC)."""
-        current_limit = self.set.current_limit
-
-        for _ in range(int(self._max_time_wait / self._delay)):
-            actual_voltage = self.meas.voltage
-            actual_current = self.meas.current
-
-            # Режим CC: ток близок к лимиту → короткое замыкание
-            if actual_current >= current_limit * 0.95:
-                self.off()
-                self._device.logger.error(f'Канал {self.num_channel} коротит (CC)')
-                raise RuntimeError(f'Канал {self.num_channel} коротит (CC)')
-
-            # Режим CV: напряжение в пределах допуска
-            if target_voltage == 0:
-                if abs(actual_voltage) < self._channel_tolerance:
-                    break
-            else:
-                if abs(target_voltage - actual_voltage) / target_voltage < self._channel_tolerance:
-                    break
-
-            sleep(self._delay)
-
-
 class TH6400(PowerSupply):
+    """Использует логику wait_for_target_voltage по току (answer_CC пуст)."""
     def __init__(self, port: str = ''):
-        super().__init__(port, th6400_commands, th6400_specs, channel_cls=TH6400Channel)
+        super().__init__(port, th6400_commands, th6400_specs)
 
 
 if __name__ == "__main__":

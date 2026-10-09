@@ -15,7 +15,7 @@ akip_1143_commands = CommList(
     ask_mode='',
     answer_CC = '',
     answer_CV='',
-    answer_UR= 'UR'
+    answer_UR= ''
 )
 
 # 2. Создать DeviceSpecs

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lib_visa"
+version = "0.1.0"
+description = "Python library for controlling lab instruments via VISA/SCPI and serial (power supplies, loads, multimeters, VNA, source meters)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "pyvisa",
+    "pyserial",
+    "PyYAML",
+    "numpy",
+    "scipy",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+# The repository root is itself the package (it has __init__.py),
+# so map the top-level package name onto the current directory.
+[tool.setuptools]
+package-dir = { "lib_visa" = "." }
+packages = [
+    "lib_visa",
+    "lib_visa.base_classes",
+    "lib_visa.load",
+    "lib_visa.mc_usb",
+    "lib_visa.multimeter",
+    "lib_visa.power_supply",
+    "lib_visa.sourse_meter",
+    "lib_visa.spectrum_analyzer",
+    "lib_visa.vna",
+]
+
+[tool.setuptools.package-data]
+lib_visa = ["all_ports.yaml"]

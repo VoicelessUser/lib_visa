@@ -19,5 +19,3 @@ try:
                 instrument.close()
 finally:
     rm.close()
-
-
