@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lib_visa"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python library for controlling lab instruments via VISA/SCPI and serial (power supplies, loads, multimeters, VNA, source meters)"
 readme = "README.md"
 requires-python = ">=3.9"
