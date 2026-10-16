@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, PowerSupply
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply
 
 '''Акип 1181/3'''
 
@@ -28,7 +28,7 @@ th6400_specs = DeviceSpecs(
 )
 
 
-class TH6400(PowerSupply):
+class TH6400(BasePowerSupply):
     """Использует логику wait_for_target_voltage по току (answer_CC пуст)."""
     def __init__(self, port: str = ''):
         super().__init__(port, th6400_commands, th6400_specs)

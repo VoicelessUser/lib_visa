@@ -1,12 +1,6 @@
 import serial
 import time
 import logging
-import random
-
-TEST_PORT = 'test'
-TEST_FLOAT_PORT = 'test_float'
-TEST_LIST_PORT = 'test_list'
-TEST_PORTS = (TEST_PORT, TEST_FLOAT_PORT, TEST_LIST_PORT)
 
 
 class SerialComp:
@@ -18,11 +12,6 @@ class SerialComp:
         self._connection: serial.Serial | None = None
 
     def connect(self):
-        if self._port in TEST_PORTS:
-            self.logger.info(
-                f"Test mode ({self._port}) for {self.__class__.__name__}"
-            )
-            return
         try:
             self._connection = serial.Serial(
                 port=self._port,
@@ -60,13 +49,6 @@ class SerialComp:
 
     def _ask_parameter(self, command: str, max_attempts: int = 2, delay: float = 0.2) -> str:
         """Отправляет запрос и ждёт ответ."""
-        if self._port == TEST_PORT:
-            return str(int(time.time()))
-        if self._port == TEST_FLOAT_PORT:
-            return f'{2.5 + random.uniform(-0.1, 0.1)}'
-        if self._port == TEST_LIST_PORT:
-            count = random.randint(1, 10)
-            return ','.join(str(2.5 + random.uniform(-0.1, 0.1)) for _ in range(count))
         if not self._connection or not self._connection.is_open:
             self.logger.error("Not connected")
             return "Not connected"
@@ -97,11 +79,6 @@ class SerialComp:
 
     def _set_parameter(self, command: str) -> bool:
         """Отправляет команду без ожидания ответа."""
-        if self._port in TEST_PORTS:
-            self.logger.info(
-                f'{self.__class__.__name__} (test mode): {command}'
-            )
-            return True
         if not self._connection or not self._connection.is_open:
             self.logger.error("Not connected")
             return False

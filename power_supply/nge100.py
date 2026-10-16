@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, PowerSupply, Channel
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply, Channel
 
 # 1. Создать CommList для NGE100
 nge100_commands = CommList(
@@ -25,7 +25,7 @@ nge100_specs = DeviceSpecs(
     delay=0.1,
     channel_tolerance=0.02  # 2%
 )
-class NGE100(PowerSupply):
+class NGE100(BasePowerSupply):
     def __init__(self, port: str = ''):
         super().__init__(port, nge100_commands, nge100_specs)
 

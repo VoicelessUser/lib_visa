@@ -1,4 +1,4 @@
-from .base_sourse_meter import CommList, DeviceSpecs, SourceMeter
+from .base_sourse_meter import CommList, DeviceSpecs, BaseSourceMeter
 
 keithley2461_commands = CommList(
     set_voltage=":SOURce:VOLTage {voltage_V}",
@@ -26,7 +26,7 @@ keithley2461_specs = DeviceSpecs(
 )
 
 
-class Keithley2461(SourceMeter):
+class Keithley2461(BaseSourceMeter):
     def __init__(self, port: str = ''):
         super().__init__(port, keithley2461_commands, keithley2461_specs)
 

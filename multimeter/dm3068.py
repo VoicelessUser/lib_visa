@@ -1,4 +1,4 @@
-from .base_multimeter import Multimeter, Meas, CommList
+from .base_multimeter import BaseMultimeter, Meas, CommList
 
 CommList_DM3068 = CommList(
     voltage_dc = ':TRIG:COUN 1;:MEAS AUTO;:MEAS:VOLT:DC?',
@@ -14,7 +14,7 @@ CommList_DM3068 = CommList(
 )
 
 
-class DM3068(Multimeter):
+class DM3068(BaseMultimeter):
     def __init__(self, port: str):
         super().__init__(port)
         self._comm_list = CommList_DM3068

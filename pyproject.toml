@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lib_visa"
-version = "0.2.0"
+version = "0.2.1"
 description = "Python library for controlling lab instruments via VISA/SCPI and serial (power supplies, loads, multimeters, VNA, source meters)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,6 +27,7 @@ package-dir = { "lib_visa" = "." }
 packages = [
     "lib_visa",
     "lib_visa.base_classes",
+    "lib_visa.lcr",
     "lib_visa.load",
     "lib_visa.mc_usb",
     "lib_visa.multimeter",

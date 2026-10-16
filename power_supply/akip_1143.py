@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, PowerSupply, Channel
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply, Channel
 
 akip_1143_commands = CommList(
     set_voltage="VOLT {voltage_V}",
@@ -26,7 +26,7 @@ akip_1143_specs = DeviceSpecs(
     channel_tolerance=0.02
 )
 
-class AKIP1143(PowerSupply):
+class AKIP1143(BasePowerSupply):
     def __init__(self, port: str = ''):
         super().__init__(port, akip_1143_commands, akip_1143_specs)
 

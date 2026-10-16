@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, PowerSupply, Channel
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply, Channel
 
 dp832_commands = CommList(
     set_voltage=":SOUR{channel}:VOLT {voltage_V}",
@@ -25,7 +25,7 @@ dp832_specs = DeviceSpecs(
     channel_tolerance=0.02
 )
 
-class DP832A(PowerSupply):
+class DP832A(BasePowerSupply):
     def __init__(self, port: str = ''):
         super().__init__(port, dp832_commands, dp832_specs)
 

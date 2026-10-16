@@ -66,7 +66,7 @@ class Meas:
         return float(self._device._ask_parameter(self._comm_list.meas_voltage))
 
 
-class SourceMeter(VisaComp):
+class BaseSourceMeter(VisaComp):
     def __init__(self, port: str, comm_list: CommList, specs: DeviceSpecs):
         super().__init__(port)
         self._comm_list = comm_list

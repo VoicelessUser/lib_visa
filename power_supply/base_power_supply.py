@@ -166,7 +166,7 @@ class Channel:
 
         
 
-class PowerSupply(VisaComp):
+class BasePowerSupply(VisaComp):
     def __init__(self, port: str, comm_list: CommList, specs: DeviceSpecs,
                  channel_cls: type[Channel] = Channel):
         super().__init__(port)

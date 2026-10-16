@@ -69,7 +69,7 @@ class Meas:
         assert self._comm_list.temperature != '', "No function temperature"
         return float(self._multimeter._ask_parameter(self._comm_list.temperature))
 
-class Multimeter(VisaComp):
+class BaseMultimeter(VisaComp):
     def __init__(self, port:str):
         super().__init__(port)
         self._comm_list: CommList
