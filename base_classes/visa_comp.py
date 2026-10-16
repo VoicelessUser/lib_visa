@@ -4,22 +4,32 @@ import yaml
 import logging
 import platform
 
+from pyvisa import constants
+
 class VisaComp:
+    # Таймаут по умолчанию (мс). Наследники могут переопределить.
+    _default_timeout = 2000
+
     def __init__(self, port: str = ''):
         self.logger = logging.getLogger("hw")
         self._port = port
         self._connection = None
-        self._timeout = 2000
+        self._rm = None
+        self._timeout = self._default_timeout
         self._max_try_query = 2
         self._max_try_connect = 3
         self._reconnect_delay = 0.5
 
     def _get_resource_manager(self):
-        """Автовыбор VISA-бэкенда: NI-VISA если есть, иначе pyvisa-py.
+        """Автовыбор VISA-бэкенда с кэшированием ResourceManager.
 
-        На Raspberry Pi / ARM Linux принудительно используем @py,
-        т.к. NI-VISA там не доступен.
+        ResourceManager создаётся один раз на объект: создание нового RM на
+        каждый запрос переоткрывает USB-ресурс и может «уронить» прибор с
+        шины (VI_ERROR_RSRC_NFOUND).
         """
+        if self._rm is not None:
+            return self._rm
+
         is_arm_linux = (
             platform.system() == 'Linux'
             and platform.machine().startswith(('arm', 'aarch'))
@@ -27,23 +37,23 @@ class VisaComp:
 
         if is_arm_linux:
             try:
-                rm = pyvisa.ResourceManager('@py')
+                self._rm = pyvisa.ResourceManager('@py')
                 self.logger.info("Using pyvisa-py backend (ARM Linux)")
-                return rm
+                return self._rm
             except Exception as e:
                 self.logger.warning(f"pyvisa-py not available on ARM: {e}")
 
         try:
-            rm = pyvisa.ResourceManager()
-            self.logger.info(f"Using default VISA backend: {rm.visalib}")
-            return rm
+            self._rm = pyvisa.ResourceManager()
+            self.logger.info(f"Using default VISA backend: {self._rm.visalib}")
+            return self._rm
         except Exception as e:
             self.logger.error(f"Default VISA failed: {e}")
             # Финальная попытка — pyvisa-py
             try:
-                rm = pyvisa.ResourceManager('@py')
+                self._rm = pyvisa.ResourceManager('@py')
                 self.logger.info("Using pyvisa-py backend (fallback)")
-                return rm
+                return self._rm
             except Exception as e2:
                 self.logger.error(f"pyvisa-py also failed: {e2}")
                 raise RuntimeError("No VISA backend available") from e2
@@ -90,6 +100,12 @@ class VisaComp:
             except Exception as e:
                 self.logger.error(f"Error during disconnect: {e}")
             self._connection = None
+        if self._rm is not None:
+            try:
+                self._rm.close()
+            except Exception as e:
+                self.logger.error(f"Error closing resource manager: {e}")
+            self._rm = None
         return self
 
     def __enter__(self):
@@ -103,6 +119,17 @@ class VisaComp:
         """Запрашивает идентификатор устройства."""
         return self._ask_parameter("*IDN?")
 
+    def _discard_input_buffer(self) -> None:
+        """Сбрасывает входной буфер прибора, не разрывая соединение."""
+        if not self._connection:
+            return
+        try:
+            self._connection.flush(
+                constants.BufferOperation.discard_read_buffer
+            )
+        except Exception as e:
+            self.logger.warning(f"Failed to flush input buffer: {e}")
+
     def _ask_parameter(self, command: str, delay: float = 0.2) -> str:
         """Отправляет запрос и ждёт ответ. При обрыве — реконнект и ретрай."""
         if not self._connection:
@@ -112,31 +139,24 @@ class VisaComp:
                 self.logger.error(f"Not connected, reconnect failed: {e}")
                 return "Not connected"
 
-        def try_query(com: str) -> str:
-            answer = self._connection.query(com)
-            self.logger.info(
-                f'{self.__class__.__name__}: {com} -> {answer}'
-            )
-            return answer
-
         last_err = None
         for attempt in range(self._max_try_query):
             try:
-                return try_query(command)
+                answer = self._connection.query(command)
+                self.logger.info(
+                    f'{self.__class__.__name__}: {command} -> {answer}'
+                )
+                return answer
             except Exception as e:
                 last_err = e
                 self.logger.error(
                     f"Query attempt {attempt + 1}/{self._max_try_query} "
                     f"failed: {e}"
                 )
-                # реконнект и повторный запрос
-                try:
-                    self.disconnect()
-                    time.sleep(delay)
-                    self.connect()
-                except Exception as e_conn:
-                    last_err = e_conn
-                    self.logger.error(f"Reconnect failed: {e_conn}")
+                # НЕ переоткрываем ресурс: сбрасываем входной буфер и
+                # повторяем запрос в том же соединении. Переоткрытие
+                # рвёт USB-сессию и роняет прибор с шины.
+                self._discard_input_buffer()
                 time.sleep(delay)
 
         return f"Error: {last_err}"
@@ -150,27 +170,20 @@ class VisaComp:
                 self.logger.error(f"Not connected, reconnect failed: {e}")
                 return False
 
-        try:
-            self._connection.write(command)
-            self.logger.info(f'{self.__class__.__name__}: {command}')
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to write command {command}: {e}")
-            # одна попытка реконнекта и повторной отправки
+        for attempt in range(self._max_try_query):
             try:
-                self.disconnect()
-                time.sleep(self._reconnect_delay)
-                self.connect()
                 self._connection.write(command)
-                self.logger.info(
-                    f'{self.__class__.__name__} (after reconnect): {command}'
-                )
+                self.logger.info(f'{self.__class__.__name__}: {command}')
                 return True
-            except Exception as e2:
+            except Exception as e:
                 self.logger.error(
-                    f"Failed to write command {command} after reconnect: {e2}"
+                    f"Write attempt {attempt + 1}/{self._max_try_query} "
+                    f"failed for {command}: {e}"
                 )
-                return False
+                # без переоткрытия ресурса — просто сброс буфера и повтор
+                self._discard_input_buffer()
+                time.sleep(self._reconnect_delay)
+        return False
 
     def _try_new_comm(self, command: str, get_answer: bool):
         """Пробует установить соединение, выполнить команду и отключиться."""

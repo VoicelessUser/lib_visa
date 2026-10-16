@@ -3,7 +3,7 @@ from .base_classes.serial_comp import SerialComp
 from .base_classes.visa_comp_test import VisaCompTest, TEST_PORT, TEST_FLOAT_PORT, TEST_LIST_PORT
 from .base_classes.serial_comp_test import SerialCompTest
 
-from .multimeter import DM3068, AKIP2101, BaseMultimeter, MultimeterTest
+from .multimeter import DM3068, AKIP2101, SDM3045X, BaseMultimeter, MultimeterTest
 
 from .power_supply import (
     DP832A, NGE100, AKIP1143, TH6400,

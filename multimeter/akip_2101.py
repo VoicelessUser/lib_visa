@@ -1,122 +1,52 @@
-from ..base_classes import VisaComp
-from dataclasses import dataclass
+"""АКИП-2101 — это OEM-версия Siglent SDM3045X.
 
-@dataclass
-class CommList:
-    voltage_dc: str
-    voltage_ac: str
-    current_dc: str
-    current_ac: str
-    resistance: str
-    frequency: str
-    capacitance: str
-    continuity: str
-    diode: str
-    temperature: str
+Команды соответствуют SDM3045X Programming Manual
+(manuals/SDM3045X_ProgrammingManual_EN.pdf):
+  * CONFigure:<function> — выбирает функцию, диапазон и разрешение,
+    но измерение НЕ запускает (Range сбрасывается в AUTO);
+  * READ?                — запускает измерение и возвращает результат;
+  * CONFigure?           — возвращает функцию/диапазон/разрешение строкой
+    вида "VOLT +2.00000000E-01". Сокращённые имена функций:
+    VOLT, VOLT:AC, CURR, CURR:AC, RES, FREQ, CAP, CONT, DIOD, TEMP.
+"""
 
-class Meas:
-    def __init__(self, multimeter: VisaComp, comm_list: CommList):
-        self._multimeter = multimeter
-        self._comm_list = comm_list
-        # Словарь для сопоставления команды конфигурации с коротким именем функции
-        self._func_map = {
-            comm_list.voltage_dc: 'VOLT',
-            comm_list.voltage_ac: 'VOLT:AC',
-            comm_list.current_dc: 'CURR',
-            comm_list.current_ac: 'CURR:AC',
-            comm_list.resistance: 'RES',
-            comm_list.frequency: 'FREQ',
-            comm_list.capacitance: 'CAP',
-            comm_list.continuity: 'CONT',
-            comm_list.diode: 'DIOD',
-            comm_list.temperature: 'TEMP'
-        }
+from .base_multimeter import BaseMultimeter, CommList, Measurement
 
-    def _get_measurement(self, config_cmd: str, func_name: str) -> float:
-        """Универсальный метод измерения с проверкой режима."""
-        assert config_cmd != '', f"No function {func_name}"
-        
-        # Спрашиваем текущий режим
-        current_mode = self._multimeter._ask_parameter('CONF?')
-        # Парсим ответ (убираем кавычки и берём первое слово)
-        current_func = current_mode.strip('"').split(',')[0].split()[0]
-        
-        # Ожидаемая функция
-        expected_func = self._func_map.get(config_cmd, '')
-        
-        # Если режим не совпадает — переключаем
-        if current_func != expected_func:
-            self._multimeter._set_parameter(config_cmd)
-        
-        # Делаем измерение
-        return float(self._multimeter._ask_parameter('READ?'))
-
-    @property
-    def voltage_dc(self):
-        return self._get_measurement(self._comm_list.voltage_dc, "voltage dc")
-
-    @property
-    def voltage_ac(self):
-        return self._get_measurement(self._comm_list.voltage_ac, "voltage ac")
-
-    @property
-    def current_dc(self):
-        return self._get_measurement(self._comm_list.current_dc, "current dc")
-
-    @property
-    def current_ac(self):
-        return self._get_measurement(self._comm_list.current_ac, "current ac")
-
-    @property
-    def resistance(self):
-        return self._get_measurement(self._comm_list.resistance, "resistance")
-
-    @property
-    def frequency(self):
-        return self._get_measurement(self._comm_list.frequency, "frequency")
-
-    @property
-    def capacitance(self):
-        return self._get_measurement(self._comm_list.capacitance, "capacitance")
-
-    @property
-    def continuity(self):
-        return self._get_measurement(self._comm_list.continuity, "continuity")
-
-    @property
-    def diode(self):
-        return self._get_measurement(self._comm_list.diode, "diode")
-
-    @property
-    def temperature(self):
-        return self._get_measurement(self._comm_list.temperature, "temperature")
+# Режим измерения задаётся отдельной командой CONF:*, результат всегда
+# читается командой READ?. Перед измерением проверяем текущий режим (CONF?)
+# и переключаем только при несовпадении с mode_id.
+CommList_AKIP2101 = CommList(
+    ask_mode='CONF?',
+    # Явные настройки триггера обязательны: без них прибор со временем
+    # зависает на READ? (с ними — 30/30 измерений без сбоев).
+    setup=('TRIG:SOUR IMM', 'TRIG:COUN 1', 'SAMP:COUN 1'),
+    voltage_dc=Measurement(read='READ?', config='CONF:VOLT:DC', mode_id='VOLT'),
+    voltage_ac=Measurement(read='READ?', config='CONF:VOLT:AC', mode_id='VOLT:AC'),
+    current_dc=Measurement(read='READ?', config='CONF:CURR:DC', mode_id='CURR'),
+    current_ac=Measurement(read='READ?', config='CONF:CURR:AC', mode_id='CURR:AC'),
+    resistance=Measurement(read='READ?', config='CONF:RES', mode_id='RES'),
+    frequency=Measurement(read='READ?', config='CONF:FREQ', mode_id='FREQ'),
+    capacitance=Measurement(read='READ?', config='CONF:CAP', mode_id='CAP'),
+    continuity=Measurement(read='READ?', config='CONF:CONT', mode_id='CONT'),
+    diode=Measurement(read='READ?', config='CONF:DIOD', mode_id='DIOD'),
+    temperature=Measurement(read='READ?', config='CONF:TEMP', mode_id='TEMP'),
+)
 
 
-class AKIP2101(VisaComp):
-    def __init__(self, port: str):
-        super().__init__(port)
-        self._comm_list: CommList = CommList(
-            voltage_dc='CONF:VOLT:DC',
-            voltage_ac='CONF:VOLT:AC',
-            current_dc='CONF:CURR:DC',
-            current_ac='CONF:CURR:AC',
-            resistance='CONF:RES',
-            frequency='CONF:FREQ',
-            capacitance='CONF:CAP',
-            continuity='CONF:CONT',
-            diode='CONF:DIODE',
-            temperature='CONF:TEMP'
-        )
-        self.meas: Meas = None  # Инициализируем в connect
+class AKIP2101(BaseMultimeter):
+    """АКИП-2101 (OEM Siglent SDM3045X)."""
 
-    def connect(self):
-        super().connect()
-        self.meas = Meas(self, self._comm_list)
-        # Не устанавливаем начальный режим, пусть будет как есть
+    _comm_list = CommList_AKIP2101
+    # CONFigure сбрасывает диапазон в AUTO, и измерение с автодиапазоном
+    # может идти заметно дольше стандартных 2 с.
+    _default_timeout = 10000
 
-    def __enter__(self):
-        self.connect()
-        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.disconnect()
+# То же устройство под «родным» именем Siglent.
+SDM3045X = AKIP2101
+
+
+if __name__ == '__main__':
+    multik = AKIP2101('address')
+    with multik:
+        print(multik.meas.voltage_dc)

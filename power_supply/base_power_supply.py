@@ -83,7 +83,10 @@ class Channel:
 
     @property
     def state(self) -> bool:
-        return bool(self._device._ask_parameter(self._comm_list.ask_state.format(channel=self.num_channel)))
+        answer = self._device._ask_parameter(
+            self._comm_list.ask_state.format(channel=self.num_channel)
+        ).strip().upper()
+        return answer in ('1', 'ON')
 
     def on(self):
         self._device._set_parameter(self._comm_list.set_on.format(channel=self.num_channel))

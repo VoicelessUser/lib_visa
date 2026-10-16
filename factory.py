@@ -10,7 +10,7 @@
 """
 
 from .power_supply import DP832A, NGE100, AKIP1143, TH6400, PowerSupplyTest
-from .multimeter import DM3068, AKIP2101, MultimeterTest
+from .multimeter import DM3068, AKIP2101, SDM3045X, MultimeterTest
 from .sourse_meter import Keithley2461, SourceMeterTest
 from .load import DL3021A, PEL500, LoadTest
 from .lcr import E4980, LcrTest
@@ -27,6 +27,8 @@ _DEVICES = {
     # Мультиметры
     'DM3068': DM3068,
     'AKIP2101': AKIP2101,
+    'SDM3045X': SDM3045X,
+    'SDM3045': SDM3045X,
     'MULTIMETERTEST': MultimeterTest,
 
     # Сурсметры
