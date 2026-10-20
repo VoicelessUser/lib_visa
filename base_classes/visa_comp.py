@@ -1,3 +1,4 @@
+import atexit
 import pyvisa
 import time
 import yaml
@@ -5,6 +6,74 @@ import logging
 import platform
 
 from pyvisa import constants
+
+
+# ---------------------------------------------------------------------------
+# Один ResourceManager на весь процесс.
+#
+# NI-VISA использует единый default ResourceManager на процесс: закрытие RM
+# одного прибора делает невалидными сессии ВСЕХ приборов (проверено на
+# DP832A + DM3068: "Invalid session handle" после disconnect первого).
+# Поэтому RM создаётся один раз, переиспользуется всеми приборами и НЕ
+# закрывается в disconnect() отдельного прибора — только при выходе из
+# процесса. Каждый disconnect() закрывает лишь собственный ресурс прибора.
+# ---------------------------------------------------------------------------
+_shared_rm = None
+
+
+def _create_resource_manager(logger):
+    """Создаёт ResourceManager с автовыбором VISA-бэкенда."""
+    is_arm_linux = (
+        platform.system() == 'Linux'
+        and platform.machine().startswith(('arm', 'aarch'))
+    )
+
+    if is_arm_linux:
+        try:
+            rm = pyvisa.ResourceManager('@py')
+            logger.info("Using pyvisa-py backend (ARM Linux)")
+            return rm
+        except Exception as e:
+            logger.warning(f"pyvisa-py not available on ARM: {e}")
+
+    try:
+        rm = pyvisa.ResourceManager()
+        logger.info(f"Using default VISA backend: {rm.visalib}")
+        return rm
+    except Exception as e:
+        logger.error(f"Default VISA failed: {e}")
+        # Финальная попытка — pyvisa-py
+        try:
+            rm = pyvisa.ResourceManager('@py')
+            logger.info("Using pyvisa-py backend (fallback)")
+            return rm
+        except Exception as e2:
+            logger.error(f"pyvisa-py also failed: {e2}")
+            raise RuntimeError("No VISA backend available") from e2
+
+
+def _get_shared_resource_manager(logger):
+    """Возвращает общий ResourceManager, создавая его при первом обращении."""
+    global _shared_rm
+    if _shared_rm is None:
+        _shared_rm = _create_resource_manager(logger)
+    return _shared_rm
+
+
+def _close_shared_resource_manager():
+    """Закрывает общий RM при штатном завершении процесса."""
+    global _shared_rm
+    if _shared_rm is None:
+        return
+    try:
+        _shared_rm.close()
+    except Exception:
+        pass
+    _shared_rm = None
+
+
+atexit.register(_close_shared_resource_manager)
+
 
 class VisaComp:
     # Таймаут по умолчанию (мс). Наследники могут переопределить.
@@ -21,42 +90,9 @@ class VisaComp:
         self._reconnect_delay = 0.5
 
     def _get_resource_manager(self):
-        """Автовыбор VISA-бэкенда с кэшированием ResourceManager.
-
-        ResourceManager создаётся один раз на объект: создание нового RM на
-        каждый запрос переоткрывает USB-ресурс и может «уронить» прибор с
-        шины (VI_ERROR_RSRC_NFOUND).
-        """
-        if self._rm is not None:
-            return self._rm
-
-        is_arm_linux = (
-            platform.system() == 'Linux'
-            and platform.machine().startswith(('arm', 'aarch'))
-        )
-
-        if is_arm_linux:
-            try:
-                self._rm = pyvisa.ResourceManager('@py')
-                self.logger.info("Using pyvisa-py backend (ARM Linux)")
-                return self._rm
-            except Exception as e:
-                self.logger.warning(f"pyvisa-py not available on ARM: {e}")
-
-        try:
-            self._rm = pyvisa.ResourceManager()
-            self.logger.info(f"Using default VISA backend: {self._rm.visalib}")
-            return self._rm
-        except Exception as e:
-            self.logger.error(f"Default VISA failed: {e}")
-            # Финальная попытка — pyvisa-py
-            try:
-                self._rm = pyvisa.ResourceManager('@py')
-                self.logger.info("Using pyvisa-py backend (fallback)")
-                return self._rm
-            except Exception as e2:
-                self.logger.error(f"pyvisa-py also failed: {e2}")
-                raise RuntimeError("No VISA backend available") from e2
+        """Возвращает единый на процесс ResourceManager (создаётся один раз)."""
+        self._rm = _get_shared_resource_manager(self.logger)
+        return self._rm
 
     def connect(self):
         """Подключается к прибору с повторными попытками (реконнект).
@@ -73,6 +109,7 @@ class VisaComp:
                 rm = self._get_resource_manager()
                 self._connection = rm.open_resource(self._port)
                 self._connection.timeout = self._timeout
+                self._rm = rm
                 self.logger.info(
                     f"Connected to {self.__class__.__name__} on {self._port}"
                 )
@@ -80,6 +117,9 @@ class VisaComp:
             except Exception as e:
                 last_err = e
                 self._connection = None
+                # RM общий на процесс — здесь его НЕ закрываем, иначе
+                # оборвём сессии остальных подключённых приборов.
+                self._rm = None
                 self.logger.error(
                     f"Connect attempt {attempt}/{self._max_try_connect} "
                     f"failed: {e}"
@@ -91,6 +131,11 @@ class VisaComp:
         ) from last_err
 
     def disconnect(self):
+        """Отключает ТОЛЬКО текущий прибор.
+
+        Закрывается собственная VISA-сессия прибора. Общий ResourceManager
+        не закрывается: иначе NI-VISA оборвёт сессии остальных приборов.
+        """
         if self._connection:
             try:
                 self._connection.close()
@@ -100,12 +145,7 @@ class VisaComp:
             except Exception as e:
                 self.logger.error(f"Error during disconnect: {e}")
             self._connection = None
-        if self._rm is not None:
-            try:
-                self._rm.close()
-            except Exception as e:
-                self.logger.error(f"Error closing resource manager: {e}")
-            self._rm = None
+        self._rm = None
         return self
 
     def __enter__(self):
