@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply, Channel
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply
 
 # 1. Создать CommList для NGE100
 nge100_commands = CommList(
@@ -31,8 +31,8 @@ class NGE100(BasePowerSupply):
 
 
 if __name__ == "__main__":
-    ps = NGE100()
-    ps.port = 'USB0::0x1AB1::0x0E11::DP8B262201226::INSTR'
+    # Адрес подставьте свой (список ресурсов: python -m lib_visa.base_classes.search)
+    ps = NGE100('USB0::...::INSTR')
     with ps:
         ps.channel_1.set.voltage = 1
         ps.channel_1.safe_on()

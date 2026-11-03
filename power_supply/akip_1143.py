@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply, Channel
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply
 
 akip_1143_commands = CommList(
     set_voltage="VOLT {voltage_V}",

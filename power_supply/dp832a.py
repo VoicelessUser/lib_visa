@@ -1,4 +1,4 @@
-from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply, Channel
+from .base_power_supply import CommList, DeviceSpecs, BasePowerSupply
 
 dp832_commands = CommList(
     set_voltage=":SOUR{channel}:VOLT {voltage_V}",

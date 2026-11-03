@@ -30,42 +30,62 @@ class DeviceSpecs:
     num_channels: int = 3
 
 
+def _check_channel_exists(num_channel: int, num_channels: int) -> None:
+    """channel_1..3 создаются всегда (ради подсказок IDE), поэтому обращение
+    к «лишнему» каналу прибора ловим здесь — иначе его команды без {channel}
+    молча уйдут в реальный выход."""
+    if num_channel > num_channels:
+        raise ValueError(
+            f'Канал {num_channel} не существует: у прибора {num_channels} кан.'
+        )
+
+
 class SetChannel:
-    def __init__(self, num_channel: int, device: VisaComp, comm_list: CommList):
+    def __init__(self, num_channel: int, device: VisaComp, comm_list: CommList,
+                 specs: DeviceSpecs):
         self._num_channel = num_channel
         self._device = device
         self._comm_list = comm_list
+        self._num_channels = specs.num_channels
 
     @property
     def voltage(self) -> float:
+        _check_channel_exists(self._num_channel, self._num_channels)
         return float(self._device._ask_parameter(self._comm_list.ask_voltage.format(channel=self._num_channel)))
 
     @voltage.setter
     def voltage(self, voltage_V: float):
+        _check_channel_exists(self._num_channel, self._num_channels)
         self._device._set_parameter(self._comm_list.set_voltage.format(channel=self._num_channel, voltage_V=voltage_V))
 
     @property
     def current_limit(self) -> float:
+        _check_channel_exists(self._num_channel, self._num_channels)
         return float(self._device._ask_parameter(self._comm_list.ask_current_limit.format(channel=self._num_channel)))
 
     @current_limit.setter
     def current_limit(self, curr_lim_A: float):
+        _check_channel_exists(self._num_channel, self._num_channels)
         self._device._set_parameter(
             self._comm_list.set_current_limit.format(channel=self._num_channel, curr_lim_A=curr_lim_A))
 
 
 class MeasChannel:
-    def __init__(self, num_channel: int, device: VisaComp, comm_list: CommList):
+    def __init__(self, num_channel: int, device: VisaComp, comm_list: CommList,
+                 specs: DeviceSpecs):
         self._num_channel = num_channel
         self._device = device
         self._comm_list = comm_list
+        self._num_channels = specs.num_channels
 
     @property
     def current(self) -> float:
+        _check_channel_exists(self._num_channel, self._num_channels)
         return float(self._device._ask_parameter(self._comm_list.meas_current.format(channel=self._num_channel)))
 
     @property
     def voltage(self) -> float:
+        _check_channel_exists(self._num_channel, self._num_channels)
         return float(self._device._ask_parameter(self._comm_list.meas_voltage.format(channel=self._num_channel)))
 
 
@@ -74,27 +94,32 @@ class Channel:
         self._max_time_wait = specs.max_time_wait
         self._delay = specs.delay
         self._channel_tolerance = specs.channel_tolerance
+        self._num_channels = specs.num_channels
         self.num_channel = num_channel
         self._device = device
 
         self._comm_list = comm_list
-        self.meas = MeasChannel(num_channel, device, comm_list)
-        self.set = SetChannel(num_channel, device, comm_list)
+        self.meas = MeasChannel(num_channel, device, comm_list, specs)
+        self.set = SetChannel(num_channel, device, comm_list, specs)
 
     @property
     def state(self) -> bool:
+        _check_channel_exists(self.num_channel, self._num_channels)
         answer = self._device._ask_parameter(
             self._comm_list.ask_state.format(channel=self.num_channel)
         ).strip().upper()
         return answer in ('1', 'ON')
 
     def on(self):
+        _check_channel_exists(self.num_channel, self._num_channels)
         self._device._set_parameter(self._comm_list.set_on.format(channel=self.num_channel))
 
     def off(self):
+        _check_channel_exists(self.num_channel, self._num_channels)
         self._device._set_parameter(self._comm_list.set_off.format(channel=self.num_channel))
 
     def wait_for_target_voltage(self, target_voltage: float):
+        _check_channel_exists(self.num_channel, self._num_channels)
         """Ожидает установления целевого напряжения.
 
         Если answer_CC задан — определяет режим по ask_mode (CV/CC/UR).
@@ -176,10 +201,19 @@ class BasePowerSupply(VisaComp):
         self._comm_list = comm_list
         self._specs = specs
 
+        # Каналы создаются явными атрибутами, а не в цикле: только явные
+        # атрибуты автодополняются IDE (ps.channel_1.set.voltage). Поэтому у
+        # приборов с меньшим числом каналов channel_2/channel_3 существуют,
+        # но при обращении падают с понятной ошибкой (см. _check_channel_exists).
         self.channel_1 = channel_cls(num_channel=1, device=self, comm_list=comm_list, specs=specs)
         self.channel_2 = channel_cls(num_channel=2, device=self, comm_list=comm_list, specs=specs)
         self.channel_3 = channel_cls(num_channel=3, device=self, comm_list=comm_list, specs=specs)
-        self.channels: tuple[Channel] = (self.channel_1, self.channel_2, self.channel_3)
+        # В channels — только реально существующие каналы прибора:
+        # групповые операции (all_channels_off, set_all_channels)
+        # «лишние» каналы не трогают.
+        self.channels: tuple[Channel] = (
+            self.channel_1, self.channel_2, self.channel_3,
+        )[:specs.num_channels]
 
     def all_channels_off(self):
         for channel in self.channels:
