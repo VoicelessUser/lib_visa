@@ -20,6 +20,6 @@ from .mc_usb.esp32 import ESP32Comm
 
 from .load import PEL500, DL3021A, BaseLoad, LoadTest
 
-from .sourse_meter import Keithley2461, BaseSourceMeter, SourceMeterTest
+from .sourse_meter import Keithley2461, B2962A, BaseSourceMeter, SourceMeterTest
 
 from .factory import get_device

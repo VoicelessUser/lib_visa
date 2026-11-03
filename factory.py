@@ -11,7 +11,7 @@
 
 from .power_supply import DP832A, NGE100, AKIP1143, TH6400, PowerSupplyTest
 from .multimeter import DM3068, AKIP2101, SDM3045X, MultimeterTest
-from .sourse_meter import Keithley2461, SourceMeterTest
+from .sourse_meter import Keithley2461, B2962A, SourceMeterTest
 from .load import DL3021A, PEL500, LoadTest
 from .lcr import E4980, LcrTest
 
@@ -35,6 +35,8 @@ _DEVICES = {
     'KEITHLEY2461': Keithley2461,
     'KEITHLEY 2461': Keithley2461,
     '2461': Keithley2461,
+    'B2962A': B2962A,
+    'B2962': B2962A,
     'SOURCEMETERTEST': SourceMeterTest,
 
     # Электронные нагрузки
