@@ -13,8 +13,6 @@ dependencies = [
     "pyvisa",
     "pyserial",
     "PyYAML",
-    "numpy",
-    "scipy",
 ]
 
 [project.optional-dependencies]

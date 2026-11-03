@@ -14,7 +14,8 @@ pip install .
 pip install -e .[test]
 ```
 
-Зависимости: `pyvisa`, `pyserial`, `PyYAML`, `numpy`, `scipy`.
+Зависимости: `pyvisa`, `pyserial`, `PyYAML` (без `numpy`/`scipy` — обработка трасс
+спектроанализатора реализована на чистом Python; `numpy` может ставиться транзитивно с `pyvisa`).
 
 Для работы VISA нужен бэкенд — **NI-VISA** (Windows/Linux x86) или **pyvisa-py**
 (автоматически используется как fallback, а на ARM-Linux, например Raspberry Pi, — принудительно).
@@ -214,3 +215,9 @@ with DP832A(ports['DP832A']) as ps:
 pip install -e .[test]
 pytest
 ```
+
+Тесты анализатора спектра (`spectrum_analyzer/spectrum_analyzer_test.py`) работают без
+железа: берут реальные трассы из лога `spectrum_analyzer/test_data/HMC733LC4BTR_1.txt`
+(ГУН HMC733LC4B + DP832A + MS2038C, 16 трасс по 551 точке) и проверяют, что
+`find_max` / `find_3_harm` находят сигнал, его 2-ю гармонику и не дают ложных пиков
+в шумовой дорожке.

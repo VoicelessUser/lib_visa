@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-import numpy as np
 from time import sleep
-from scipy.signal import find_peaks
 from ..base_classes import VisaComp
 
 MAX_FREQ_HZ = 20e9  # верхний частотный предел MS2038C
@@ -381,35 +379,61 @@ class Trace:
     
 
     @staticmethod
-    def _noise_level(amps: np.ndarray) -> float:
+    def _noise_level(amps: list[float]) -> float:
         """Оценка уровня шумовой дорожки: медиана амплитуд (устойчива к пикам сигнала)."""
-        return float(np.median(amps))
+        ordered = sorted(amps)
+        mid = len(ordered) // 2
+        if len(ordered) % 2:
+            return float(ordered[mid])
+        return (ordered[mid - 1] + ordered[mid]) / 2.0
+
+    @staticmethod
+    def _find_peaks(amps: list[float], height: float) -> list[int]:
+        """Индексы локальных максимумов не ниже height (аналог scipy.signal.find_peaks).
+
+        Крайние точки трассы пиками не считаются, для плато берётся его середина.
+        """
+        peaks: list[int] = []
+        i, n = 1, len(amps)
+        while i < n - 1:
+            if amps[i] > amps[i - 1]:
+                j = i
+                while j + 1 < n and amps[j + 1] == amps[i]:  # плато одинаковых значений
+                    j += 1
+                if j + 1 < n and amps[j] > amps[j + 1]:
+                    middle = (i + j) // 2
+                    if amps[middle] >= height:
+                        peaks.append(middle)
+                i = j + 1
+            else:
+                i += 1
+        return peaks
 
     def find_3_harm(self, trace_num: int = 1, threshold_db: float = 10.0) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None:
         """Возвращает ((f1,a1),(f2,a2),(f3,a3)): f1 — самый левый локальный максимум, превышающий уровень шумов на threshold_db (по умолчанию 10 дБ), гармоники — наибольшие пики выше того же порога в окнах n*f1 ± f1/2. Если гармоника выше 20 ГГц, вне диапазона или не выше порога — amplitude = -99.0. Нет пиков выше порога / ошибка -> None."""
         trace = self.read_trace(trace_num)
         if not trace:
             return None
-        data = np.asarray(trace, dtype=float)
-        freqs, amps = data[:, 0], data[:, 1]
+        freqs = [float(point[0]) for point in trace]
+        amps = [float(point[1]) for point in trace]
 
         noise = self._noise_level(amps)
-        peak_idx, _ = find_peaks(amps, height=noise + threshold_db)  # пики выше шумов
-        if peak_idx.size == 0:  # сигнала выше шумовой дорожки нет
+        peak_idx = self._find_peaks(amps, noise + threshold_db)  # пики выше шумов
+        if not peak_idx:  # сигнала выше шумовой дорожки нет
             return None
 
-        i1 = int(peak_idx[0])  # самый левый пик выше порога
-        f1, a1 = float(freqs[i1]), float(amps[i1])
+        i1 = peak_idx[0]  # самый левый пик выше порога
+        f1, a1 = freqs[i1], amps[i1]
 
         def harmonic(mult: int) -> tuple[float, float]:
             freq_h = mult * f1
             if freq_h > MAX_FREQ_HZ or not freqs[0] <= freq_h <= freqs[-1]:
                 return (freq_h, HARM_NO_DATA)
-            window = (freqs >= freq_h - f1 / 2) & (freqs < freq_h + f1 / 2)
-            cand = peak_idx[window[peak_idx]]
-            if cand.size:  # наибольший пик выше порога в окне
-                i = cand[int(np.argmax(amps[cand]))]
-                return (float(freqs[i]), float(amps[i]))
+            low, high = freq_h - f1 / 2, freq_h + f1 / 2
+            cand = [i for i in peak_idx if low <= freqs[i] < high]
+            if cand:  # наибольший пик выше порога в окне
+                i = max(cand, key=lambda idx: amps[idx])
+                return (freqs[i], amps[i])
             return (freq_h, HARM_NO_DATA)  # гармоника не выше шумов
 
         return ((f1, a1), harmonic(2), harmonic(3))
