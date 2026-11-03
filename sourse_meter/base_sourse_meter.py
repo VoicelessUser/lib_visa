@@ -34,6 +34,8 @@ class CommList:
     set_on: str
     set_off: str
 
+    meas_resistance: str = None   # опционально (пусто — прибор не умеет)
+
 
 @dataclass
 class DeviceSpecs:
@@ -187,6 +189,15 @@ class MeasChannel:
         _check_channel_exists(self._num_channel, self._num_channels)
         return float(self._device._ask_parameter(
             self._comm_list.meas_current.format(channel=self._num_channel)))
+
+    @property
+    def resistance(self) -> float:
+        if self._comm_list.meas_resistance is None:
+            raise NotImplementedError(
+                'Измерение сопротивления не задано в CommList прибора')
+        _check_channel_exists(self._num_channel, self._num_channels)
+        return float(self._device._ask_parameter(
+            self._comm_list.meas_resistance.format(channel=self._num_channel)))
 
 
 class Channel:

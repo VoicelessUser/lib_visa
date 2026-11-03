@@ -20,6 +20,7 @@ sourse_meter_test_commands = CommList(
 
     meas_current=":MEASure{channel}:CURRent?",
     meas_voltage=":MEASure{channel}:VOLTage?",
+    meas_resistance=":MEASure{channel}:RESistance?",
 
     ask_state=":OUTPut{channel}?",
     set_on=":OUTPut{channel} ON",

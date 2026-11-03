@@ -22,6 +22,7 @@ keithley2461_commands = CommList(
 
     meas_current=":MEASure:CURRent?",
     meas_voltage=":MEASure:VOLTage?",
+    meas_resistance=":MEASure:RESistance?",
 
     ask_state=":OUTPut?",
     set_on=":OUTPut ON",

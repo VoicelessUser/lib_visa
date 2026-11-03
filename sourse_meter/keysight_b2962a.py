@@ -25,6 +25,7 @@ b2962a_commands = CommList(
 
     meas_voltage="MEAS:VOLT? (@{channel})",
     meas_current="MEAS:CURR? (@{channel})",
+    meas_resistance="MEAS:RES? (@{channel})",
 
     ask_state="OUTP{channel}?",
     set_on="OUTP{channel} ON",
