@@ -53,11 +53,19 @@ class Meas:
     Если у измерения заданы config и у прибора задан ask_mode — сначала
     спрашиваем текущий режим и переключаемся только при несовпадении.
     Иначе читаем напрямую, без лишних запросов (как у DM3068).
+
+    n_meas — число измерений на одно чтение (по умолчанию 1).
+    При n_meas > 1 делается n_meas последовательных чтений, возвращается
+    их среднее. Среднее считает библиотека, а не прибор: у DM3068 серию
+    отсчётов из прибора выгрузить нельзя (RIGOL-набор), у AKIP2101/
+    SDM3045X есть нативная пачка SAMP:COUN n — при необходимости можно
+    задействовать позже.
     """
 
     def __init__(self, multimeter: VisaComp, comm_list: CommList):
         self._multimeter = multimeter
         self._comm_list = comm_list
+        self.n_meas = 1
 
     def _ensure_mode(self, measurement: Measurement) -> None:
         """Переключает режим прибора, только если он отличается от нужного."""
@@ -72,7 +80,12 @@ class Meas:
             self._ensure_mode(measurement)
         for command in self._comm_list.setup:
             self._multimeter._set_parameter(command)
-        return float(self._multimeter._ask_parameter(measurement.read))
+        # n_meas последовательных чтений, на выходе — среднее.
+        values = [
+            float(self._multimeter._ask_parameter(measurement.read))
+            for _ in range(self.n_meas)
+        ]
+        return sum(values) / len(values)
 
     @property
     def voltage_dc(self) -> float:
